@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import Header from './Header';
 import Sidebar from './components/Sidebar';
 import ChatInterface from './components/ChatInterface';
 import { api } from './api';
@@ -183,21 +182,18 @@ function App() {
   };
 
   return (
-    <div className="app-wrapper">
-      <Header />
-      <div className="app">
-        <Sidebar
-          conversations={conversations}
-          currentConversationId={currentConversationId}
-          onSelectConversation={handleSelectConversation}
-          onNewConversation={handleNewConversation}
-        />
-        <ChatInterface
-          conversation={currentConversation}
-          onSendMessage={handleSendMessage}
-          isLoading={isLoading}
-        />
-      </div>
+    <div className="app">
+      <Sidebar
+        conversations={conversations}
+        currentConversationId={currentConversationId}
+        onSelectConversation={handleSelectConversation}
+        onNewConversation={handleNewConversation}
+      />
+      <ChatInterface
+        conversation={currentConversation}
+        onSendMessage={handleSendMessage}
+        isLoading={isLoading}
+      />
     </div>
   );
 }
