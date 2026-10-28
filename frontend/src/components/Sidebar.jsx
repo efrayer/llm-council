@@ -33,6 +33,9 @@ export default function Sidebar({
                 {conv.title || 'New Conversation'}
               </div>
               <div className="conversation-meta">
+                {/* created_at is stored as UTC without a "Z", so add it to get local time */}
+                {new Date(conv.created_at.endsWith('Z') ? conv.created_at : conv.created_at + 'Z').toLocaleDateString()}
+                {' · '}
                 {conv.message_count} messages
               </div>
               <button
