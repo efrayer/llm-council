@@ -50,6 +50,21 @@ class Conversation(BaseModel):
     messages: List[Dict[str, Any]]
 
 
+def build_query_with_history(conversation: Dict[str, Any], content: str) -> str:
+    """Prepend earlier turns so follow-up questions keep their context."""
+    # ponytail: history is folded into the query text so all 3 stages see it; trim old turns if prompts get too long
+    turns = []
+    for msg in conversation["messages"]:
+        if msg["role"] == "user":
+            turns.append(f"User: {msg['content']}")
+        elif msg.get("stage3"):
+            turns.append(f"Assistant: {msg['stage3'].get('response', '')}")
+    if not turns:
+        return content
+    history = "\n\n".join(turns)
+    return f"Previous conversation:\n\n{history}\n\nCurrent question (answer this, using the conversation above as context):\n{content}"
+
+
 @app.get("/")
 async def root():
     """Health check endpoint."""
@@ -79,6 +94,19 @@ async def get_conversation(conversation_id: str):
     return conversation
 
 
+@app.delete("/api/conversations/{conversation_id}")
+async def delete_conversation(conversation_id: str):
+    """Delete a conversation."""
+    # Only accept real UUIDs so the id can't point outside the data directory
+    try:
+        uuid.UUID(conversation_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    if not storage.delete_conversation(conversation_id):
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return {"status": "deleted"}
+
+
 @app.post("/api/conversations/{conversation_id}/message")
 async def send_message(conversation_id: str, request: SendMessageRequest):
     """
@@ -92,6 +120,7 @@ async def send_message(conversation_id: str, request: SendMessageRequest):
 
     # Check if this is the first message
     is_first_message = len(conversation["messages"]) == 0
+    query = build_query_with_history(conversation, request.content)
 
     # Add user message
     storage.add_user_message(conversation_id, request.content)
@@ -102,9 +131,7 @@ async def send_message(conversation_id: str, request: SendMessageRequest):
         storage.update_conversation_title(conversation_id, title)
 
     # Run the 3-stage council process
-    stage1_results, stage2_results, stage3_result, metadata = await run_full_council(
-        request.content
-    )
+    stage1_results, stage2_results, stage3_result, metadata = await run_full_council(query)
 
     # Add assistant message with all stages
     storage.add_assistant_message(
@@ -136,6 +163,7 @@ async def send_message_stream(conversation_id: str, request: SendMessageRequest)
 
     # Check if this is the first message
     is_first_message = len(conversation["messages"]) == 0
+    query = build_query_with_history(conversation, request.content)
 
     async def event_generator():
         try:
@@ -149,18 +177,26 @@ async def send_message_stream(conversation_id: str, request: SendMessageRequest)
 
             # Stage 1: Collect responses
             yield f"data: {json.dumps({'type': 'stage1_start'})}\n\n"
-            stage1_results = await stage1_collect_responses(request.content)
+            stage1_results = await stage1_collect_responses(query)
             yield f"data: {json.dumps({'type': 'stage1_complete', 'data': stage1_results})}\n\n"
+
+            # If no models responded, stop here instead of failing later in stage 3
+            if not stage1_results:
+                stage3_result = {"model": "error", "response": "All models failed to respond. Check the backend log for details."}
+                yield f"data: {json.dumps({'type': 'stage3_complete', 'data': stage3_result})}\n\n"
+                storage.add_assistant_message(conversation_id, [], [], stage3_result)
+                yield f"data: {json.dumps({'type': 'complete'})}\n\n"
+                return
 
             # Stage 2: Collect rankings
             yield f"data: {json.dumps({'type': 'stage2_start'})}\n\n"
-            stage2_results, label_to_model = await stage2_collect_rankings(request.content, stage1_results)
+            stage2_results, label_to_model = await stage2_collect_rankings(query, stage1_results)
             aggregate_rankings = calculate_aggregate_rankings(stage2_results, label_to_model)
             yield f"data: {json.dumps({'type': 'stage2_complete', 'data': stage2_results, 'metadata': {'label_to_model': label_to_model, 'aggregate_rankings': aggregate_rankings}})}\n\n"
 
             # Stage 3: Synthesize final answer
             yield f"data: {json.dumps({'type': 'stage3_start'})}\n\n"
-            stage3_result = await stage3_synthesize_final(request.content, stage1_results, stage2_results)
+            stage3_result = await stage3_synthesize_final(query, stage1_results, stage2_results)
             yield f"data: {json.dumps({'type': 'stage3_complete', 'data': stage3_result})}\n\n"
 
             # Wait for title generation if it was started

@@ -1,8 +1,13 @@
 """OpenRouter API client for making LLM requests."""
 
+import ssl
 import httpx
+import truststore
 from typing import List, Dict, Any, Optional
 from .config import OPENROUTER_API_KEY, OPENROUTER_API_URL
+
+# Use the OS certificate store so TLS-scanning antivirus (e.g. Norton) roots are trusted
+SSL_CONTEXT = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
 
 
 async def query_model(
@@ -32,7 +37,7 @@ async def query_model(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        async with httpx.AsyncClient(timeout=timeout, verify=SSL_CONTEXT) as client:
             response = await client.post(
                 OPENROUTER_API_URL,
                 headers=headers,
@@ -48,8 +53,11 @@ async def query_model(
                 'reasoning_details': message.get('reasoning_details')
             }
 
+    except httpx.HTTPStatusError as e:
+        print(f"HTTP error querying model {model}: {e.response.status_code} - {e.response.text}")
+        return None
     except Exception as e:
-        print(f"Error querying model {model}: {e}")
+        print(f"Error querying model {model}: {type(e).__name__}: {e}")
         return None
 
 
