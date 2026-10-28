@@ -274,8 +274,8 @@ Title:"""
 
     messages = [{"role": "user", "content": title_prompt}]
 
-    # Use gemini-2.5-flash for title generation (fast and cheap)
-    response = await query_model("google/gemini-2.5-flash", messages, timeout=30.0)
+    # Use Claude Sonnet 5.5 for title generation
+    response = await query_model("anthropic/claude-sonnet-5.5", messages, timeout=30.0)
 
     if response is None:
         # Fallback to a generic title

@@ -1,14 +1,15 @@
 import './Header.css'
-import headerImage from './assets/header-banner.png'
 
 function Header() {
   return (
     <header className="site-header">
-      <img 
-        src={headerImage} 
-        alt="LLM Council - Compare AI Model Responses" 
-        className="header-image"
-      />
+      <div>
+        <h1 className="site-title">LLM Council</h1>
+        <p className="site-subtitle">GPT 6.1 Terra - Gemini 4 Argon - Claude Sonnet 5.5</p>
+      </div>
+      <a className="site-link" href="https://thinkdataanalysis.com" target="_blank" rel="noreferrer">
+        ThinkDataAnalysis.com
+      </a>
     </header>
   )
 }

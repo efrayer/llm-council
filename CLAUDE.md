@@ -123,7 +123,7 @@ All backend modules use relative imports (e.g., `from .config import ...`) not a
 All ReactMarkdown components must be wrapped in `<div className="markdown-content">` for proper spacing. This class is defined globally in `index.css`.
 
 ### Model Configuration
-Models are hardcoded in `backend/config.py`. Chairman can be same or different from council members. The current default is Gemini as chairman per user preference.
+Models are hardcoded in `backend/config.py`. Chairman can be same or different from council members. The current default is GPT-6.1 Sol as chairman per user preference.
 
 ## Common Gotchas
 
